@@ -10,6 +10,12 @@ from functools import reduce
 
 from utils.mnist_utils import *
 
+# Turning off logging clutter
+import logging
+logging.getLogger('tensorflow').disabled = True
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
 class vgg19:
     def __init__(self, dropout=0.5):
         self.dropout = dropout
@@ -74,7 +80,7 @@ def compute_cost(logits, labels):
 
     return cost
 
-def model(X_train, X_val, y_train, y_val, print_cost = True, learning_rate = 0.00008, minibatch_size = 64, num_epochs = 25):
+def model(X_train, X_val, y_train, y_val, print_cost = True, learning_rate = 0.00008, minibatch_size = 64, num_epochs = 20):
     ops.reset_default_graph() # to be able to rerun the model without overwriting tf variables
 
     input = tf.placeholder(tf.float32, [None, 28, 28, 1])
@@ -133,17 +139,7 @@ def model(X_train, X_val, y_train, y_val, print_cost = True, learning_rate = 0.0
         plt.title("Learning rate =" + str(learning_rate))
         plt.show()
 
-        # Calculate the correct predictions
-        # correct_prediction = tf.equal(tf.argmax(output, 1), tf.argmax(labels, 1))
-
-        # Calculate accuracy on the test set
-        # accuracy = tf.reduce_mean(tf.cast(correct_prediction, 'float32'))
-
-        # eval_metric_ops = {'accuracy': tf.metrics.accuracy(labels, output)}
-
-        
-
-        #print ("Train Accuracy:", sess.run(acc_op, {input:X_train, labels: y_train}))
+        # print ("Train Accuracy:", sess.run(acc_op, {input:X_train, labels: y_train}))
         print ("Test Accuracy:", sess.run(acc_op, {input:X_val, labels: y_val}))
 
         return tf.trainable_variables()
