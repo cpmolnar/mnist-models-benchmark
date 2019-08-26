@@ -92,7 +92,7 @@ def model(X_train, X_val, y_train, y_val, print_cost = True, learning_rate = 0.0
     cost = compute_cost(output, labels)
     optimizer = tf.train.AdamOptimizer(learning_rate).minimize(cost)
 
-    print(np.sum([np.prod(var.shape) for var in tf.trainable_variables()]))
+    print("Trainable variables:", np.sum([np.prod(var.shape) for var in tf.trainable_variables()]))
 
     costs = []
     seed = 0
