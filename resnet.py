@@ -96,7 +96,7 @@ def compute_cost(logits, labels):
 
     return cost
 
-def model(X_train, X_val, y_train, y_val, print_cost = True, learning_rate = 0.00008, minibatch_size = 64, num_epochs = 20):
+def model(X_train, X_val, y_train, y_val, print_cost = True, learning_rate = 0.0001, minibatch_size = 64, num_epochs = 1):
     ops.reset_default_graph()
 
     input = tf.placeholder(tf.float32, [None, 28, 28, 1])
@@ -134,7 +134,7 @@ def model(X_train, X_val, y_train, y_val, print_cost = True, learning_rate = 0.0
                 (minibatch_X, minibatch_Y) = minibatches[i]
 
                 _ , minibatch_cost = sess.run([optimizer, cost], feed_dict={input: minibatch_X, labels: minibatch_Y})
-                # print("Minibatch %i of %i, cost: %f" % (i, num_minibatches, minibatch_cost))
+                print("Minibatch %i of %i, cost: %f" % (i, num_minibatches, minibatch_cost))
 
                 epoch_cost += minibatch_cost / num_minibatches
             
@@ -156,7 +156,7 @@ def model(X_train, X_val, y_train, y_val, print_cost = True, learning_rate = 0.0
             for minibatch in minibatches:
                 (minibatch_X, minibatch_Y) = minibatch
                 accuracy.append(sess.run(acc_op, {input:minibatch_X, labels: minibatch_Y}))
-            return tf.reduce_mean(accuracy).eval()
+            return np.mean(accuracy)
         
         print ("Train Accuracy:", compute_accuracy(X_train, y_train, MINI_BATCH_SIZE))
         print ("Test Accuracy:", compute_accuracy(X_val, y_val, MINI_BATCH_SIZE))

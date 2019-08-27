@@ -144,7 +144,7 @@ def model(X_train, X_val, y_train, y_val, print_cost = True, learning_rate = 0.0
             for minibatch in minibatches:
                 (minibatch_X, minibatch_Y) = minibatch
                 accuracy.append(sess.run(acc_op, {input:minibatch_X, labels: minibatch_Y}))
-            return tf.reduce_mean(accuracy).eval()
+            return np.mean(accuracy)
         
         print ("Train Accuracy:", compute_accuracy(X_train, y_train, MINI_BATCH_SIZE))
         print ("Test Accuracy:", compute_accuracy(X_val, y_val, MINI_BATCH_SIZE))
