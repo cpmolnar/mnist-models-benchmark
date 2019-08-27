@@ -18,16 +18,29 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 class inception_v1:
     def build(self, input):
-        # Adding an initial filter layer
-        self.conv1_1 = self.conv_layer(input, num_outputs=4, kernel_size=3, stride=2, padding='SAME')
+        # self.conv1_1 = self.conv_layer(input, num_outputs=64, kernel_size=7, stride=2, padding='SAME')
+        # self.pool1 = self.max_pool(self.conv1_1)
+        
+        self.conv2_1 = self.conv_layer(input, num_outputs=64, kernel_size=1, stride=1, padding='SAME')
+        self.conv2_2 = self.conv_layer(self.conv2_1, num_outputs=192, kernel_size=3, stride=1, padding='SAME')
+        self.pool2 = self.max_pool(self.conv2_2)
 
-        self.inception2_1 = self.inception_block(self.conv1_1, 2, 1, 2, 1, 2, 2)
-        self.pool2 = self.max_pool(self.inception2_1)
+        self.inception3_1 = self.inception_block(self.pool2, 64, 96, 128, 16, 32, 32)
+        self.inception3_2 = self.inception_block(self.inception3_1, 128, 128, 192, 32, 96, 64)
+        self.pool3 = self.max_pool(self.inception3_2)
 
-        self.inception3_1 = self.inception_block(self.pool2, 2, 2, 4, 2, 4, 2)
-        self.pool3 = self.avg_pool(self.inception3_1)
+        self.inception4_1 = self.inception_block(self.pool3, 192, 96, 208, 16, 48, 64)
+        self.inception4_2 = self.inception_block(self.inception4_1, 160, 112, 224, 24, 64, 64)
+        self.inception4_3 = self.inception_block(self.inception4_2, 128, 128, 256, 24, 64, 64)
+        self.inception4_4 = self.inception_block(self.inception4_3, 112, 144, 288, 32, 64, 64)
+        self.inception4_5 = self.inception_block(self.inception4_4, 256, 160, 320, 32, 128, 128)
+        self.pool4 = self.max_pool(self.inception4_5)
 
-        self.fc4 = self.fc_layer(self.pool3, num_outputs=10)
+        self.inception5_1 = self.inception_block(self.pool4, 256, 160, 320, 32, 128, 128)
+        self.inception5_2 = self.inception_block(self.inception5_1, 384, 192, 384, 48, 128, 128)
+        self.pool5 = self.avg_pool(self.inception5_2)
+
+        self.fc6 = self.fc_layer(self.pool5, num_outputs=10)
                
     def avg_pool(self, val, kernel_size=3, stride=2, padding='VALID'):
         return tf.contrib.layers.avg_pool2d(val, kernel_size, stride, padding)
@@ -68,7 +81,7 @@ def compute_cost(logits, labels):
 
     return cost
 
-def model(X_train, X_val, y_train, y_val, print_cost = True, learning_rate = 0.0002, minibatch_size = 64, num_epochs = 20):
+def model(X_train, X_val, y_train, y_val, print_cost = True, learning_rate = 0.0002, minibatch_size = 64, num_epochs = 10):
     ops.reset_default_graph()
 
     input = tf.placeholder(tf.float32, [None, 28, 28, 1])
@@ -76,17 +89,18 @@ def model(X_train, X_val, y_train, y_val, print_cost = True, learning_rate = 0.0
 
     model = inception_v1()
     model.build(input)
-    output = model.fc4
+    output = model.fc6
     cost = compute_cost(output, labels)
     optimizer = tf.train.AdamOptimizer(learning_rate).minimize(cost)
 
-    print(np.sum([np.prod(var.shape) for var in tf.trainable_variables()]))
+    print("Trainable variables:", np.sum([np.prod(var.shape) for var in tf.trainable_variables()]))
 
     costs = []
     seed = 0
     config = tf.ConfigProto(log_device_placement=False)
     config.intra_op_parallelism_threads = 44
     config.inter_op_parallelism_threads = 44
+    config.gpu_options.allocator_type = 'BFC'
     config.gpu_options.allow_growth = True
     acc, acc_op = tf.metrics.accuracy(labels=tf.argmax(labels, 1), 
                                   predictions=tf.argmax(output,1))
@@ -108,7 +122,7 @@ def model(X_train, X_val, y_train, y_val, print_cost = True, learning_rate = 0.0
                 (minibatch_X, minibatch_Y) = minibatch
 
                 _ , minibatch_cost = sess.run([optimizer, cost], feed_dict={input: minibatch_X, labels: minibatch_Y})
-                print("Minibatch %i of %i, cost: %f" % (i, num_minibatches, minibatch_cost))
+                # print("Minibatch %i of %i, cost: %f" % (i, num_minibatches, minibatch_cost))
 
                 epoch_cost += minibatch_cost / num_minibatches
             
@@ -123,8 +137,25 @@ def model(X_train, X_val, y_train, y_val, print_cost = True, learning_rate = 0.0
         plt.title("Learning rate =" + str(learning_rate))
         plt.show()
 
-        # print ("Train Accuracy:", sess.run(acc_op, {input:X_train, labels: y_train}))
-        print ("Test Accuracy:", sess.run(acc_op, {input:X_val, labels: y_val}))
+        accuracy=0
+        mini_batch_size = 3360
+        num_minibatches = int(X_train.shape[0] / mini_batch_size)
+        minibatches = random_mini_batches(X_train, y_train, mini_batch_size)
+        for minibatch in minibatches:
+            (minibatch_X, minibatch_Y) = minibatch
+            accuracy += sess.run(acc_op, {input:minibatch_X, labels: minibatch_Y}) / num_minibatches
+        
+        print ("Train Accuracy:", accuracy)
+
+        accuracy=0
+        mini_batch_size = 840
+        num_minibatches = int(X_val.shape[0] / mini_batch_size)
+        minibatches = random_mini_batches(X_val, y_val, mini_batch_size)
+        for minibatch in minibatches:
+            (minibatch_X, minibatch_Y) = minibatch
+            accuracy += sess.run(acc_op, {input:minibatch_X, labels: minibatch_Y}) / num_minibatches
+
+        print ("Test Accuracy:", accuracy)
 
         return tf.trainable_variables()
 
