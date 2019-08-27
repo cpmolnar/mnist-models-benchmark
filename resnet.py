@@ -16,6 +16,8 @@ logging.getLogger('tensorflow').disabled = True
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
+MINI_BATCH_SIZE=4200
+
 class resnet:
     def build(self, input):
         # self.conv1_1 = self.conv_layer(input, num_outputs=64, kernel_size=7, stride=2, padding='VALID')
@@ -149,8 +151,17 @@ def model(X_train, X_val, y_train, y_val, print_cost = True, learning_rate = 0.0
         plt.title("Learning rate =" + str(learning_rate))
         plt.show()
 
-        # print ("Train Accuracy:", sess.run(acc_op, {input:X_train, labels: y_train}))
-        print ("Test Accuracy:", sess.run(acc_op, {input:X_val, labels: y_val}))
+        def compute_accuracy(X, Y, mini_batch_size):
+            accuracy=0
+            num_minibatches = int(X.shape[0] / mini_batch_size)
+            minibatches = random_mini_batches(X, Y, mini_batch_size)
+            for minibatch in minibatches:
+                (minibatch_X, minibatch_Y) = minibatch
+                accuracy += sess.run(acc_op, {input:minibatch_X, labels: minibatch_Y}) / num_minibatches
+            return accuracy
+        
+        print ("Train Accuracy:", compute_accuracy(X_train, y_train, MINI_BATCH_SIZE))
+        print ("Test Accuracy:", compute_accuracy(X_val, y_val, MINI_BATCH_SIZE))
 
         return tf.trainable_variables()
 
