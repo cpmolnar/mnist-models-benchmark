@@ -3,11 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import keras.utils.np_utils
 import tensorflow as tf
-from tensorflow.python.framework import ops
 import time
-	
-from functools import reduce
-
 from utils.mnist_utils import *
 
 # Turning off logging clutter
@@ -116,52 +112,52 @@ class inception_v2:
         concat = tf.concat(axis=-1, values=[branch_0, branch_1a, branch_1b, branch_2a, branch_2b, branch_3])
 
         return concat
-    
-def compute_cost(logits, labels):
 
-    cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits = logits, labels = labels))
+def circular_learning_rate(global_step, learning_rate=0.0001, max_lr=0.0008, step_size=20, gamma=0.99994, mode='triangular2', name=None):
+    # Circular learning rate formula is from [https://arxiv.org/pdf/1506.01186.pdf]
+    cycle = tf.floor(1 + global_step / (2 * step_size))
+    x = tf.abs(1 + ((global_step / step_size) - (2 * cycle)))
+    clr = tf.maximum(0, (1 - x)) * (max_lr - learning_rate)
 
-    return cost
+    if mode == 'triangular2':
+        clr = (clr / (2 ** (cycle-1)))
+    if mode == 'exp_range':
+        clr = ((gamma ** global_step) * clr)
+    return (clr + learning_rate)
 
-def model(X_train, X_val, y_train, y_val, print_cost = True, learning_rate = 0.0002, minibatch_size = 64, num_epochs = 1):
-    ops.reset_default_graph()
-
+def model(X_train, X_val, y_train, y_val, print_cost = True, learning_rate = 0, minibatch_size = 64, num_epochs = 8):
     input = tf.placeholder(tf.float32, [None, 28, 28, 1])
     labels = tf.placeholder(tf.float32, [None, 10])
+    global_step = tf.Variable(0., trainable=False)
 
-    model = inception_v2()
-    model.build(input)
+    model = inception_v2().build(input)
     output = model.fc6
-    cost = compute_cost(output, labels)
-    optimizer = tf.train.AdamOptimizer(learning_rate).minimize(cost)
+    loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=output, labels=labels))
+    optimizer = tf.train.AdamOptimizer(learning_rate=circular_learning_rate(global_step, learning_rate=learning_rate, max_lr=0.0008, step_size=num_epochs))
+    train_op = optimizer.minimize(loss_op, global_step=global_step)
+    acc, acc_op = tf.metrics.accuracy(labels=tf.argmax(labels, 1), predictions=tf.argmax(output,1))
 
     print("Trainable variables:", np.sum([np.prod(var.shape) for var in tf.trainable_variables()]))
 
     costs = []
-    seed = 0
+
     config = tf.ConfigProto(log_device_placement=False)
-    config.intra_op_parallelism_threads = 44
-    config.inter_op_parallelism_threads = 44
-    config.gpu_options.allocator_type = 'BFC'
-    config.gpu_options.allow_growth = True
-    acc, acc_op = tf.metrics.accuracy(labels=tf.argmax(labels, 1), 
-                                  predictions=tf.argmax(output,1))
     with tf.Session(config=config) as sess:
-        sess.run(tf.local_variables_initializer())
         sess.run(tf.global_variables_initializer())
 
-        for epoch in range(num_epochs):
+        for epoch in range(1, num_epochs+1):
             start_time = time.time()
+            num_minibatches = int(X_train.shape[0] / minibatch_size)
+            minibatches = random_mini_batches(X_train, y_train, minibatch_size)
+            
+            sess.run(global_step.assign(epoch))
+            print('Learning rate:',circular_learning_rate(global_step, learning_rate=0.0000, max_lr=0.0004, step_size=8).eval())
 
             epoch_cost = 0.
-            num_minibatches = int(X_train.shape[0] / minibatch_size)
-            seed = seed + 1
-            minibatches = random_mini_batches(X_train, y_train, minibatch_size)
-
             for i in range(num_minibatches):
                 (minibatch_X, minibatch_Y) = minibatches[i]
 
-                _ , minibatch_cost = sess.run([optimizer, cost], feed_dict={input: minibatch_X, labels: minibatch_Y})
+                _ , minibatch_cost = sess.run([train_op, loss_op], feed_dict={input: minibatch_X, labels: minibatch_Y})
                 print("Minibatch %i of %i, cost: %f" % (i, num_minibatches, minibatch_cost))
 
                 epoch_cost += minibatch_cost / num_minibatches
