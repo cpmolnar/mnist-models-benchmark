@@ -94,7 +94,7 @@ def model(X_train, X_val, y_train, y_val, print_cost = True, learning_rate = 0, 
     global_step = tf.Variable(0., trainable=False)
 
     model = vgg19().build(input)
-    output = model.fc6
+    output = model.fc8
     loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=output, labels=labels))
     optimizer = tf.train.AdamOptimizer(learning_rate=circular_learning_rate(global_step, learning_rate=learning_rate, max_lr=0.0008, step_size=num_epochs))
     train_op = optimizer.minimize(loss_op, global_step=global_step)
