@@ -147,8 +147,8 @@ def model(X_train, X_val, y_train, y_val, num_epochs=20, print_cost = True, mini
     model.build(input)
     logits = model.fc6
     aux_logits = model.ac3
-    tf.losses.softmax_cross_entropy(onehot_labels=labels, logits=logits, label_smoothing=0.1, weights=1.0)
-    tf.losses.softmax_cross_entropy(onehot_labels=labels, logits=aux_logits, label_smoothing=0.1, weights=0.4)
+    tf.losses.softmax_cross_entropy(onehot_labels=labels, logits=logits, weights=1.0)
+    tf.losses.softmax_cross_entropy(onehot_labels=labels, logits=aux_logits, weights=0.4)
 
     losses = tf.get_collection(tf.GraphKeys.LOSSES)
     loss_op = tf.reduce_mean(tf.add_n(losses))
