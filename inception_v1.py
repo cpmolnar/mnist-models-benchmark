@@ -83,7 +83,7 @@ class inception_v1:
         ac = self.avg_pool(val, kernel_size=5, stride=3)
         ac = tf.contrib.layers.conv2d(ac, num_outputs=num_1x1, kernel_size=1, weights_initializer=tf.contrib.layers.xavier_initializer(seed = 1))
         ac = self.fc_layer(ac, num_outputs=fc1_outputs)
-        ac = tf.nn.dropout(ac, rate=0.7)
+        ac = tf.nn.dropout(ac, rate=0.3)
         ac = self.fc_layer(ac, num_outputs=fc2_outputs)
 
         return ac
