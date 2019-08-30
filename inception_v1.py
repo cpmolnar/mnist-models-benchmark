@@ -126,7 +126,6 @@ def model(X_train, X_val, y_train, y_val, num_epochs=20, print_cost = True, mini
 
     def compute_accuracy(X, Y, mini_batch_size=MINI_BATCH_SIZE):
         accuracy=[]
-        num_minibatches = int(X.shape[0] / mini_batch_size)
         minibatches = random_mini_batches(X, Y, mini_batch_size)
         for minibatch in minibatches:
             (minibatch_X, minibatch_Y) = minibatch
