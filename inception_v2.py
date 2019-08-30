@@ -27,7 +27,7 @@ class inception_v2:
         self.inception3_2 = self.inception_block_spacial_aggregation(self.inception3_1, 128, 128, 192, 32, 96, 64)
         self.pool3 = self.max_pool(self.inception3_2)
 
-        self.ac3 = self.auxiliary_classifier(self.pool3, num_1x1=128, num_outputs=10)
+        self.ac = self.auxiliary_classifier(self.pool3, num_1x1=128, num_outputs=10)
 
         self.inception4_1 = self.inception_block_factorized(self.pool3, 192, 96, 208, 16, 48, 64)
         self.inception4_2 = self.inception_block_factorized(self.inception4_1, 160, 112, 224, 24, 64, 64)
@@ -146,7 +146,7 @@ def model(X_train, X_val, y_train, y_val, num_epochs=20, print_cost = True, mini
     model = inception_v2()
     model.build(input)
     logits = model.fc6
-    aux_logits = model.ac3
+    aux_logits = model.ac
     tf.losses.softmax_cross_entropy(onehot_labels=labels, logits=logits, weights=1.0)
     tf.losses.softmax_cross_entropy(onehot_labels=labels, logits=aux_logits, weights=0.4)
 

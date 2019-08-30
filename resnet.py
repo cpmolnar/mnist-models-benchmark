@@ -90,45 +90,59 @@ class resnet:
 
         return conv
     
-def circular_learning_rate(global_step, learning_rate=0.0001, max_lr=0.0008, step_size=20, gamma=0.99994, mode='triangular2', name=None):
+def circular_learning_rate(global_step, min_lr=0.0001, max_lr=0.0008, step_size=2000, gamma=0.99994, mode='triangular2', name=None):
     # Circular learning rate formula is from [https://arxiv.org/pdf/1506.01186.pdf]
-    cycle = tf.floor(1 + global_step / (2 * step_size))
-    x = tf.abs(1 + ((global_step / step_size) - (2 * cycle)))
-    clr = tf.maximum(0, (1 - x)) * (max_lr - learning_rate)
+    cycle = tf.floor(1. + tf.cast(global_step, "float32") / (2. * step_size))
+    x = tf.abs(1. + ((tf.cast(global_step, "float32") / step_size) - (2. * cycle)))
+    clr = tf.maximum(0., (1. - x)) * (max_lr - min_lr)
 
     if mode == 'triangular2':
         clr = (clr / (2 ** (cycle-1)))
     if mode == 'exp_range':
-        clr = ((gamma ** global_step) * clr)
-    return (clr + learning_rate)
+        clr = ((gamma ** tf.cast(global_step, "float32")) * clr)
+    return (clr + min_lr)
 
-def model(X_train, X_val, y_train, y_val, print_cost = True, learning_rate = 0, minibatch_size = 64, num_epochs = 8):
+def model(X_train, X_val, y_train, y_val, num_epochs=20, print_cost = True, minibatch_size = 64):
     input = tf.placeholder(tf.float32, [None, 28, 28, 1])
     labels = tf.placeholder(tf.float32, [None, 10])
-    global_step = tf.Variable(0., trainable=False)
+    global_step = tf.train.get_or_create_global_step()
+    num_minibatches = int(X_train.shape[0] / minibatch_size)
+    step_size = (2 * num_minibatches)
+    min_lr = 0.000
+    max_lr = 0.008
 
-    model = resnet().build(input)
-    output = model.fc5
-    loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=output, labels=labels))
-    optimizer = tf.train.AdamOptimizer(learning_rate=circular_learning_rate(global_step, learning_rate=learning_rate, max_lr=0.0008, step_size=num_epochs))
+    model = resnet()
+    model.build(input)
+    logits = model.fc5
+    tf.losses.softmax_cross_entropy(onehot_labels=labels, logits=logits, weights=1.0)
+
+    losses = tf.get_collection(tf.GraphKeys.LOSSES)
+    loss_op = tf.reduce_mean(tf.add_n(losses))
+    optimizer = tf.train.AdamOptimizer(learning_rate=circular_learning_rate(global_step, min_lr, max_lr, step_size))
     train_op = optimizer.minimize(loss_op, global_step=global_step)
-    acc, acc_op = tf.metrics.accuracy(labels=tf.argmax(labels, 1), predictions=tf.argmax(output,1))
+    acc, acc_op = tf.metrics.accuracy(labels=tf.argmax(labels, 1), predictions=tf.argmax(logits,1))
+
+    def compute_accuracy(X, Y, mini_batch_size=MINI_BATCH_SIZE):
+        accuracy=[]
+        num_minibatches = int(X.shape[0] / mini_batch_size)
+        minibatches = random_mini_batches(X, Y, mini_batch_size)
+        for minibatch in minibatches:
+            (minibatch_X, minibatch_Y) = minibatch
+            accuracy.append(sess.run(acc_op, {input:minibatch_X, labels: minibatch_Y}))
+        return np.mean(accuracy)
 
     print("Trainable variables:", np.sum([np.prod(var.shape) for var in tf.trainable_variables()]))
 
     costs = []
-
     config = tf.ConfigProto(log_device_placement=False)
+    config.gpu_options.allow_growth = True
     with tf.Session(config=config) as sess:
+        sess.run(tf.local_variables_initializer())
         sess.run(tf.global_variables_initializer())
 
         for epoch in range(1, num_epochs+1):
             start_time = time.time()
-            num_minibatches = int(X_train.shape[0] / minibatch_size)
             minibatches = random_mini_batches(X_train, y_train, minibatch_size)
-            
-            sess.run(global_step.assign(epoch))
-            print('Learning rate:',circular_learning_rate(global_step, learning_rate=0.0000, max_lr=0.0004, step_size=8).eval())
 
             epoch_cost = 0.
             for i in range(num_minibatches):
@@ -147,20 +161,11 @@ def model(X_train, X_val, y_train, y_val, print_cost = True, learning_rate = 0, 
         plt.plot(np.squeeze(costs))
         plt.ylabel('Cost')
         plt.xlabel('Iterations')
-        plt.title("Learning rate =" + str(learning_rate))
+        plt.title("Cost per iteration")
         plt.show()
-
-        def compute_accuracy(X, Y, mini_batch_size):
-            accuracy=[]
-            num_minibatches = int(X.shape[0] / mini_batch_size)
-            minibatches = random_mini_batches(X, Y, mini_batch_size)
-            for minibatch in minibatches:
-                (minibatch_X, minibatch_Y) = minibatch
-                accuracy.append(sess.run(acc_op, {input:minibatch_X, labels: minibatch_Y}))
-            return np.mean(accuracy)
         
-        print ("Train Accuracy:", compute_accuracy(X_train, y_train, MINI_BATCH_SIZE))
-        print ("Test Accuracy:", compute_accuracy(X_val, y_val, MINI_BATCH_SIZE))
+        print ("Train Accuracy:", compute_accuracy(X_train, y_train))
+        print ("Test Accuracy:", compute_accuracy(X_val, y_val))
 
         return tf.trainable_variables()
 
