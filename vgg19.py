@@ -95,7 +95,7 @@ def model(X_train, X_val, y_train, y_val, num_epochs=20, print_cost = True, mini
     num_minibatches = int(X_train.shape[0] / minibatch_size)
     step_size = (2 * num_minibatches)
     min_lr = 0.000
-    max_lr = 0.008
+    max_lr = 0.0008
 
     model = vgg19()
     model.build(input)
